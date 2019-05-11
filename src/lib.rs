@@ -1,6 +1,15 @@
 extern crate byteorder;
 use byteorder::{ByteOrder, LittleEndian};
 
+#[derive(Debug)]
+pub enum Robject {
+    Null,
+    Table(u32),
+    Entry(u32),
+    Data(u32),
+    String(u32)
+}
+
 //--------------------------------------------------------------------------------------------------------
 // Resource Directory Table - RDT
 //--------------------------------------------------------------------------------------------------------

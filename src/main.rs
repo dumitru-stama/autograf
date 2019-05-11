@@ -124,7 +124,7 @@ fn main() -> io::Result<()> {
         hexdump(&rsrc_section[0..256]);
 
         // tree holds a tree view of the tables described by the starting offset
-        let mut tree = Tree::new(0);
+        let mut tree = Tree::new(Robject::Table(0));
         let mut root = tree.root_mut();
 
         match walk_tree(root, &rsrc_section, 0, 0) {
@@ -143,7 +143,7 @@ fn main() -> io::Result<()> {
 }
 
 //-------------------------------------------------------------------------------------------
-fn walk_tree(mut root: NodeMut<u32>, rs: &[u8], ki: u32, level: usize) -> Result<usize, String>{
+fn walk_tree(mut root: NodeMut<Robject>, rs: &[u8], ki: u32, level: usize) -> Result<usize, String>{
     let mut ot = ki as usize;
     let mut t = Rtable {
         characteristics: 0,
@@ -187,9 +187,10 @@ fn walk_tree(mut root: NodeMut<u32>, rs: &[u8], ki: u32, level: usize) -> Result
         }
         print!("{}", repeat(' ').take(level).collect::<String>());
         println!("{:X?}", e);
-        
+       
+        let mut entry_root = root.append(Robject::Entry(oe as u32));
         if let Some(tofs) = e.is_table_offset() {
-            let mut new_root = root.append(tofs);
+            let mut new_root = entry_root.append(Robject::Table(tofs as u32));
             walk_tree(new_root, rs, tofs, level+2)?;
         }
     }
@@ -217,8 +218,9 @@ fn walk_tree(mut root: NodeMut<u32>, rs: &[u8], ki: u32, level: usize) -> Result
         print!("{}", repeat(' ').take(level).collect::<String>());
         println!("{:X?}", e);
         
+        let mut entry_root = root.append(Robject::Entry(oe as u32));
         if let Some(tofs) = e.is_table_offset() {
-            let mut new_root = root.append(tofs as u32);
+            let mut new_root = entry_root.append(Robject::Table(tofs as u32));
             walk_tree(new_root, rs, tofs, level+2)?;
         }
     }

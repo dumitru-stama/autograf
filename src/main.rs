@@ -265,7 +265,8 @@ fn walk_tree(tree: *mut Tree<u32>, rs: &[u8], ki: u32, level: usize) -> Result<u
         let mut e = Rentry {
             typ: RDE::TypeString(0),
             offset:0,
-            s: None
+            s: None,
+            data: None
         };
         let oe = ot+16+i*8;
         e.from_bytes(&rs[oe..oe+8]);
@@ -277,28 +278,108 @@ fn walk_tree(tree: *mut Tree<u32>, rs: &[u8], ki: u32, level: usize) -> Result<u
         };
         s.from_bytes(&rs[so as usize..])?;
         e.s = Some(s);
+
+        let tst = e.is_table_offset();
+        if let None = tst {
+            let mut d = Rdata {
+                rva: 0,
+                size: 0,
+                cp: 0
+            };
+            d.from_bytes(&rs[e.offset as usize..]);
+            e.data = Some(d);
+        }
         print!("{}", repeat(' ').take(level).collect::<String>());
         println!("{:X?}", e);
-
+        
         if let Some(tofs) = e.is_table_offset() {
             walk_tree(tree, rs, tofs, level+2)?;
         }
+
+        //let tst = e.is_table_offset();
+        //match tst {
+        //    Some(tofs) => {
+        //        walk_tree(tree, rs, tofs, level+2)?;
+        //    },
+        //    None => {
+        //        let mut d = Rdata {
+        //            rva: 0,
+        //            size: 0,
+        //            cp: 0
+        //        };
+        //        d.from_bytes(&rs[e.offset as usize..]);
+        //        print!("{}", repeat(' ').take(level+2).collect::<String>());
+        //        println!("{:X?}", d);
+        //    }
+        //}
+        //if let Some(tofs) = e.is_table_offset() {
+        //    walk_tree(tree, rs, tofs, level+2)?;
+        //} else {
+        //    let mut d = Rdata {
+        //        rva: 0,
+        //        size: 0,
+        //        cp: 0
+        //    };
+        //    d.from_bytes(&rs[e.offset as usize..]);
+        //    print!("{}", repeat(' ').take(level).collect::<String>());
+        //    println!("{:X?}", e);
+        //}
     }
 
     for i in 0..t.ids as usize {
         let mut e = Rentry {
             typ: RDE::TypeId(0),
             offset:0,
-            s: None
+            s: None,
+            data: None
         };
         let oe = ot+16+(t.names as usize*8)+i*8;
         e.from_bytes(&rs[oe..oe+8]);
+
+        let tst = e.is_table_offset();
+        if let None = tst {
+            let mut d = Rdata {
+                rva: 0,
+                size: 0,
+                cp: 0
+            };
+            d.from_bytes(&rs[e.offset as usize..]);
+            e.data = Some(d);
+        }
         print!("{}", repeat(' ').take(level).collect::<String>());
         println!("{:X?}", e);
-
+        
         if let Some(tofs) = e.is_table_offset() {
             walk_tree(tree, rs, tofs, level+2)?;
         }
+        //match tst {
+        //    Some(tofs) => {
+        //        walk_tree(tree, rs, tofs, level+2)?;
+        //    },
+        //    None => {
+        //        let mut d = Rdata {
+        //            rva: 0,
+        //            size: 0,
+        //            cp: 0
+        //        };
+        //        d.from_bytes(&rs[e.offset as usize..]);
+        //        print!("{}", repeat(' ').take(level+2).collect::<String>());
+        //        println!("{:X?}", d);
+        //    }
+        //}
+        //
+        //if let Some(tofs) = e.is_table_offset() {
+        //    walk_tree(tree, rs, tofs, level+2)?;
+        //} else {
+        //    let mut d = Rdata {
+        //        rva: 0,
+        //        size: 0,
+        //        cp: 0
+        //    };
+        //    d.from_bytes(&rs[e.offset as usize..]);
+        //    print!("{}", repeat(' ').take(level).collect::<String>());
+        //    println!("{:X?}", e);
+        //}
     }
 
     Ok(0)

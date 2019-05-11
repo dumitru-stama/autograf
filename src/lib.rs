@@ -232,7 +232,8 @@ pub enum RDE {
 pub struct Rentry {
 	pub typ: RDE,
 	pub offset: u32,
-    pub s: Option<Rstring>
+    pub s: Option<Rstring>,
+    pub data: Option<Rdata>
 }
 
 impl Rentry {
@@ -359,6 +360,41 @@ mod rentry_test {
             Some(_) => assert!(false),
             None => assert!(true)
         }
+	}
+}
+
+//--------------------------------------------------------------------------------------------------------
+// Resource Data - RD
+//--------------------------------------------------------------------------------------------------------
+#[derive(Debug)]
+pub struct Rdata {
+	pub rva: u32,
+	pub size: u32,
+    pub cp: u32,
+}
+
+impl Rdata {
+	pub fn as_bytes(&self) -> Vec<u8> {
+		let mut bytes: Vec<u8> = vec![0u8;16];
+		LittleEndian::write_u32(&mut bytes[0..4], self.rva);
+		LittleEndian::write_u32(&mut bytes[4..8], self.size);
+		LittleEndian::write_u32(&mut bytes[8..12], self.cp);
+		LittleEndian::write_u32(&mut bytes[12..16], 0);
+		bytes
+	}
+	
+	pub fn from_bytes(&mut self, buf: &[u8]) -> Result<u32, ()> {
+		if buf.len() >= 16 {
+			let reserved = LittleEndian::read_u32(&buf[12..16]);
+            if reserved != 0 {
+                return Err(());
+            }
+			self.rva = LittleEndian::read_u32(&buf[0..4]);
+			self.size = LittleEndian::read_u32(&buf[4..8]);
+			self.cp = LittleEndian::read_u32(&buf[8..12]);
+			return Ok(16);
+		}
+		Err(())
 	}
 }
 //--------------------------------------------------------------------------------------------------------

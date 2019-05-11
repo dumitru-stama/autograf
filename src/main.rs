@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::SeekFrom;
 use byteorder::{ByteOrder, LittleEndian};
 use hexdump::hexdump;
-use ego_tree::Tree;
+use ego_tree::{Tree, NodeMut};
 use persrc::*;
 
 fn main() -> io::Result<()> {
@@ -123,12 +123,17 @@ fn main() -> io::Result<()> {
 
         hexdump(&rsrc_section[0..256]);
 
+        // tree holds a tree view of the tables described by the starting offset
         let mut tree = Tree::new(0);
+        let mut root = tree.root_mut();
 
-        match walk_tree(&mut tree, &rsrc_section, 0, 0) {
+        match walk_tree(root, &rsrc_section, 0, 0) {
             Ok(_) => println!("Ok"),
             Err(s) => println!("{}", s),
         };
+
+        //println!("{:?}", tree);
+        dbg!(&tree);
 
     } else {
         println!("Here we have to handle the case where there is no resource section");
@@ -138,7 +143,7 @@ fn main() -> io::Result<()> {
 }
 
 //-------------------------------------------------------------------------------------------
-fn walk_tree(tree: *mut Tree<u32>, rs: &[u8], ki: u32, level: usize) -> Result<usize, String>{
+fn walk_tree(mut root: NodeMut<u32>, rs: &[u8], ki: u32, level: usize) -> Result<usize, String>{
     let mut ot = ki as usize;
     let mut t = Rtable {
         characteristics: 0,
@@ -184,7 +189,8 @@ fn walk_tree(tree: *mut Tree<u32>, rs: &[u8], ki: u32, level: usize) -> Result<u
         println!("{:X?}", e);
         
         if let Some(tofs) = e.is_table_offset() {
-            walk_tree(tree, rs, tofs, level+2)?;
+            let mut new_root = root.append(tofs);
+            walk_tree(new_root, rs, tofs, level+2)?;
         }
     }
 
@@ -212,7 +218,8 @@ fn walk_tree(tree: *mut Tree<u32>, rs: &[u8], ki: u32, level: usize) -> Result<u
         println!("{:X?}", e);
         
         if let Some(tofs) = e.is_table_offset() {
-            walk_tree(tree, rs, tofs, level+2)?;
+            let mut new_root = root.append(tofs as u32);
+            walk_tree(new_root, rs, tofs, level+2)?;
         }
     }
 

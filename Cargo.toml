@@ -7,4 +7,13 @@ edition = "2018"
 [dependencies]
 byteorder = "1.3.1"
 hexdump = "0.1.0"
+ego-tree = "0.6.0"
+
+[lib]
+name = "persrc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "autograf"
+path = "src/main.rs"
 

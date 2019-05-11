@@ -1,7 +1,10 @@
+extern crate persrc;
 extern crate byteorder;
 extern crate hexdump;
+extern crate ego_tree;
 
 use std::io;
+use std::iter::repeat;
 use std::io::{Error, ErrorKind};
 use std::str;
 use std::io::prelude::*;
@@ -9,12 +12,17 @@ use std::fs::File;
 use std::io::SeekFrom;
 use byteorder::{ByteOrder, LittleEndian};
 use hexdump::hexdump;
+use ego_tree::Tree;
+use persrc::*;
 
 fn main() -> io::Result<()> {
     let mut msdos_buf = [0u8;64];
     let mut pe_buf = vec![0u8;256];
 
-    let mut f = File::open("samples/twain_32.dll")?;
+    // library test, please remove
+    //test();
+
+    let mut f = File::open("samples/ZoomIt.exe")?;
     f.read_exact(&mut msdos_buf)?;
     let mz = LittleEndian::read_u16(&msdos_buf[..2]);
     if mz != 0x5A4D {
@@ -113,109 +121,116 @@ fn main() -> io::Result<()> {
         let mut rsrc_section = vec![0u8; sec_rsrc_psize as usize];
         f.read_exact(&mut rsrc_section)?;
 
-        hexdump(&rsrc_section[0..128]);
+        hexdump(&rsrc_section[0..256]);
 
-        let mut ti: usize = 0;
+        let mut tree = Tree::new(0);
 
-        let mut t_characteristics = LittleEndian::read_u32(&rsrc_section[ti..ti+4]);
-        let mut t_timestamp = LittleEndian::read_u32(&rsrc_section[ti+4..ti+8]);
-        let mut t_majorv = LittleEndian::read_u16(&rsrc_section[ti+8..ti+10]);
-        let mut t_minorv = LittleEndian::read_u16(&rsrc_section[ti+10..ti+12]);
-        let mut t_nr_of_names = LittleEndian::read_u16(&rsrc_section[ti+12..ti+14]);
-        let mut t_nr_of_ids = LittleEndian::read_u16(&rsrc_section[ti+14..ti+16]);
+        match walk_tree(&mut tree, &rsrc_section, 0, 0) {
+            Ok(_) => println!("Ok"),
+            Err(s) => println!("{}", s),
+        };
 
-        println!("Characteristics: 0x{:X?}", t_characteristics);
-        println!("Timestamp: 0x{:X?}", t_timestamp);
-        println!("Major Version: {}", t_majorv);
-        println!("Minor Version: {}", t_minorv);
-        println!("Number of name entries: {}", t_nr_of_names);
-        println!("Number of id entries: {}", t_nr_of_ids);
+        //let mut ti: usize = 0;
 
-        let mut ni: usize = ti + 16;
-        for i in 0..t_nr_of_names as usize {
-            let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
-            let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
-            println!("  Name offset: 0x{:X?}", e_name_ofs);
-            println!("  Item offset: 0x{:X?}", e_next_ofs);
-        }
+        //let mut t_characteristics = LittleEndian::read_u32(&rsrc_section[ti..ti+4]);
+        //let mut t_timestamp = LittleEndian::read_u32(&rsrc_section[ti+4..ti+8]);
+        //let mut t_majorv = LittleEndian::read_u16(&rsrc_section[ti+8..ti+10]);
+        //let mut t_minorv = LittleEndian::read_u16(&rsrc_section[ti+10..ti+12]);
+        //let mut t_nr_of_names = LittleEndian::read_u16(&rsrc_section[ti+12..ti+14]);
+        //let mut t_nr_of_ids = LittleEndian::read_u16(&rsrc_section[ti+14..ti+16]);
 
-        ni += 8 * t_nr_of_names as usize;
-        for i in 0..t_nr_of_ids as usize {
-            let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
-            let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
-            println!("  ID: 0x{:X?}", e_name_ofs);
-            println!("  Item offset: 0x{:X?}", e_next_ofs);
-        }
+        //println!("Characteristics: 0x{:X?}", t_characteristics);
+        //println!("Timestamp: 0x{:X?}", t_timestamp);
+        //println!("Major Version: {}", t_majorv);
+        //println!("Minor Version: {}", t_minorv);
+        //println!("Number of name entries: {}", t_nr_of_names);
+        //println!("Number of id entries: {}", t_nr_of_ids);
 
+        //let mut ni: usize = ti + 16;
+        //for i in 0..t_nr_of_names as usize {
+        //    let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
+        //    let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
+        //    println!("  Name offset: 0x{:X?}", e_name_ofs);
+        //    println!("  Item offset: 0x{:X?}", e_next_ofs);
+        //}
 
-
-
-        ti += 16 + 8*t_nr_of_names as usize + 8*t_nr_of_ids as usize;
-
-        t_characteristics = LittleEndian::read_u32(&rsrc_section[ti..ti+4]);
-        t_timestamp = LittleEndian::read_u32(&rsrc_section[ti+4..ti+8]);
-        t_majorv = LittleEndian::read_u16(&rsrc_section[ti+8..ti+10]);
-        t_minorv = LittleEndian::read_u16(&rsrc_section[ti+10..ti+12]);
-        t_nr_of_names = LittleEndian::read_u16(&rsrc_section[ti+12..ti+14]);
-        t_nr_of_ids = LittleEndian::read_u16(&rsrc_section[ti+14..ti+16]);
-
-        println!("Characteristics: 0x{:X?}", t_characteristics);
-        println!("Timestamp: 0x{:X?}", t_timestamp);
-        println!("Major Version: {}", t_majorv);
-        println!("Minor Version: {}", t_minorv);
-        println!("Number of name entries: {}", t_nr_of_names);
-        println!("Number of id entries: {}", t_nr_of_ids);
-
-        ni = ti + 16;
-        for i in 0..t_nr_of_names as usize {
-            let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
-            let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
-            println!("  Name offset: 0x{:X?}", e_name_ofs);
-            println!("  Item offset: 0x{:X?}", e_next_ofs);
-        }
-
-        ni += 8 * t_nr_of_names as usize;
-        for i in 0..t_nr_of_ids as usize {
-            let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
-            let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
-            println!("  ID: 0x{:X?}", e_name_ofs);
-            println!("  Item offset: 0x{:X?}", e_next_ofs);
-        }
+        //ni += 8 * t_nr_of_names as usize;
+        //for i in 0..t_nr_of_ids as usize {
+        //    let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
+        //    let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
+        //    println!("  ID: 0x{:X?}", e_name_ofs);
+        //    println!("  Item offset: 0x{:X?}", e_next_ofs);
+        //}
 
 
 
 
-        ti += 16 + 8*t_nr_of_names as usize + 8*t_nr_of_ids as usize;
+        //ti += 16 + 8*t_nr_of_names as usize + 8*t_nr_of_ids as usize;
 
-        t_characteristics = LittleEndian::read_u32(&rsrc_section[ti..ti+4]);
-        t_timestamp = LittleEndian::read_u32(&rsrc_section[ti+4..ti+8]);
-        t_majorv = LittleEndian::read_u16(&rsrc_section[ti+8..ti+10]);
-        t_minorv = LittleEndian::read_u16(&rsrc_section[ti+10..ti+12]);
-        t_nr_of_names = LittleEndian::read_u16(&rsrc_section[ti+12..ti+14]);
-        t_nr_of_ids = LittleEndian::read_u16(&rsrc_section[ti+14..ti+16]);
+        //t_characteristics = LittleEndian::read_u32(&rsrc_section[ti..ti+4]);
+        //t_timestamp = LittleEndian::read_u32(&rsrc_section[ti+4..ti+8]);
+        //t_majorv = LittleEndian::read_u16(&rsrc_section[ti+8..ti+10]);
+        //t_minorv = LittleEndian::read_u16(&rsrc_section[ti+10..ti+12]);
+        //t_nr_of_names = LittleEndian::read_u16(&rsrc_section[ti+12..ti+14]);
+        //t_nr_of_ids = LittleEndian::read_u16(&rsrc_section[ti+14..ti+16]);
 
-        println!("Characteristics: 0x{:X?}", t_characteristics);
-        println!("Timestamp: 0x{:X?}", t_timestamp);
-        println!("Major Version: {}", t_majorv);
-        println!("Minor Version: {}", t_minorv);
-        println!("Number of name entries: {}", t_nr_of_names);
-        println!("Number of id entries: {}", t_nr_of_ids);
+        //println!("Characteristics: 0x{:X?}", t_characteristics);
+        //println!("Timestamp: 0x{:X?}", t_timestamp);
+        //println!("Major Version: {}", t_majorv);
+        //println!("Minor Version: {}", t_minorv);
+        //println!("Number of name entries: {}", t_nr_of_names);
+        //println!("Number of id entries: {}", t_nr_of_ids);
 
-        ni = ti + 16;
-        for i in 0..t_nr_of_names as usize {
-            let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
-            let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
-            println!("  Name offset: 0x{:X?}", e_name_ofs);
-            println!("  Item offset: 0x{:X?}", e_next_ofs);
-        }
+        //ni = ti + 16;
+        //for i in 0..t_nr_of_names as usize {
+        //    let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
+        //    let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
+        //    println!("  Name offset: 0x{:X?}", e_name_ofs);
+        //    println!("  Item offset: 0x{:X?}", e_next_ofs);
+        //}
 
-        ni += 8 * t_nr_of_names as usize;
-        for i in 0..t_nr_of_ids as usize {
-            let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
-            let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
-            println!("  ID: 0x{:X?}", e_name_ofs);
-            println!("  Item offset: 0x{:X?}", e_next_ofs);
-        }
+        //ni += 8 * t_nr_of_names as usize;
+        //for i in 0..t_nr_of_ids as usize {
+        //    let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
+        //    let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
+        //    println!("  ID: 0x{:X?}", e_name_ofs);
+        //    println!("  Item offset: 0x{:X?}", e_next_ofs);
+        //}
+
+
+
+
+        //ti += 16 + 8*t_nr_of_names as usize + 8*t_nr_of_ids as usize;
+
+        //t_characteristics = LittleEndian::read_u32(&rsrc_section[ti..ti+4]);
+        //t_timestamp = LittleEndian::read_u32(&rsrc_section[ti+4..ti+8]);
+        //t_majorv = LittleEndian::read_u16(&rsrc_section[ti+8..ti+10]);
+        //t_minorv = LittleEndian::read_u16(&rsrc_section[ti+10..ti+12]);
+        //t_nr_of_names = LittleEndian::read_u16(&rsrc_section[ti+12..ti+14]);
+        //t_nr_of_ids = LittleEndian::read_u16(&rsrc_section[ti+14..ti+16]);
+
+        //println!("Characteristics: 0x{:X?}", t_characteristics);
+        //println!("Timestamp: 0x{:X?}", t_timestamp);
+        //println!("Major Version: {}", t_majorv);
+        //println!("Minor Version: {}", t_minorv);
+        //println!("Number of name entries: {}", t_nr_of_names);
+        //println!("Number of id entries: {}", t_nr_of_ids);
+
+        //ni = ti + 16;
+        //for i in 0..t_nr_of_names as usize {
+        //    let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
+        //    let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
+        //    println!("  Name offset: 0x{:X?}", e_name_ofs);
+        //    println!("  Item offset: 0x{:X?}", e_next_ofs);
+        //}
+
+        //ni += 8 * t_nr_of_names as usize;
+        //for i in 0..t_nr_of_ids as usize {
+        //    let e_name_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8..ni+i*8+4]);
+        //    let e_next_ofs = LittleEndian::read_u32(&rsrc_section[ni+i*8+4..ni+i*8+8]);
+        //    println!("  ID: 0x{:X?}", e_name_ofs);
+        //    println!("  Item offset: 0x{:X?}", e_next_ofs);
+        //}
 
 
 
@@ -230,5 +245,62 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn walk_tree(tree: *mut Tree<u32>, rs: &[u8], ki: u32, level: usize) -> Result<usize, String>{
+    let mut ot = ki as usize;
+    let mut t = Rtable {
+        characteristics: 0,
+        timestamp: 0,
+        maj_ver: 0,
+        min_ver: 0,
+        names: 0,
+        ids: 0
+    };
+    t.from_bytes(&rs[ot..ot+16]);
+    print!("{}", repeat(' ').take(level).collect::<String>());
+    println!("{:X?}", t);
+
+    for i in 0..t.names as usize {
+        let mut e = Rentry {
+            typ: RDE::TypeString(0),
+            offset:0,
+            s: None
+        };
+        let oe = ot+16+i*8;
+        e.from_bytes(&rs[oe..oe+8]);
+        let so = e.get_name_offset()?;
+        let mut s = Rstring {
+            size: 0,
+            bytes: vec![],
+            utf8: None
+        };
+        s.from_bytes(&rs[so as usize..])?;
+        e.s = Some(s);
+        print!("{}", repeat(' ').take(level).collect::<String>());
+        println!("{:X?}", e);
+
+        if let Some(tofs) = e.is_table_offset() {
+            walk_tree(tree, rs, tofs, level+2)?;
+        }
+    }
+
+    for i in 0..t.ids as usize {
+        let mut e = Rentry {
+            typ: RDE::TypeId(0),
+            offset:0,
+            s: None
+        };
+        let oe = ot+16+(t.names as usize*8)+i*8;
+        e.from_bytes(&rs[oe..oe+8]);
+        print!("{}", repeat(' ').take(level).collect::<String>());
+        println!("{:X?}", e);
+
+        if let Some(tofs) = e.is_table_offset() {
+            walk_tree(tree, rs, tofs, level+2)?;
+        }
+    }
+
+    Ok(0)
 }
 

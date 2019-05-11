@@ -1,3 +1,4 @@
 /target
+/tmp
 /samples
 **/*.rs.bk

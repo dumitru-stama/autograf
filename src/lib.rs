@@ -24,6 +24,17 @@ pub struct Rtable {
 }
 
 impl Rtable {
+    pub fn new() -> Rtable {
+        Rtable {
+            characteristics: 0,
+            timestamp: 0,
+            maj_ver: 0,
+            min_ver: 0,
+            names: 0,
+            ids: 0
+        }
+    }
+
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut bytes: Vec<u8> = vec![0u8;16];
 		LittleEndian::write_u32(&mut bytes[..4], self.characteristics);
@@ -46,6 +57,13 @@ impl Rtable {
 		}
 		Err(format!("[Rtable::from_bytes] Invalid buffer length: {} bytes; should be at least 16", buf.len()))
 	}
+	pub fn new_from_bytes(buf: &[u8]) -> Result<Rtable, String> {
+        let mut t = Rtable::new();
+        match t.from_bytes(buf) {
+            Ok(_) => return Ok(t),
+            Err(msg) => return Err(msg)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -106,6 +124,14 @@ pub struct Rstring {
 }
 
 impl Rstring {
+    pub fn new() -> Rstring {
+        Rstring {
+            size: 0,
+            bytes: vec![],
+            utf8: None
+        }
+    }
+
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut buf: Vec<u8> = vec![];
 		let mut tmp = vec![0u8;4];
@@ -134,19 +160,20 @@ impl Rstring {
             if let Ok(s) = utf {
                 self.utf8 = Some(s);
             }
-            //let mut i = 0;
-			//for v in buf[2..].iter() {
-			//	self.bytes.push(*v);
-            //    i += 1;
-            //    if i >= s*2 {
-            //        break;
-            //    }
-			//}
 			return Ok(buf.len() as u32)
 		}
 		Err(format!("[Rstring::from_bytes] Buffer is too short: {} bytes", buf.len()))
 	}
-	
+
+	pub fn new_from_bytes(buf: &[u8]) -> Result<Rstring, String> {
+        let mut s = Rstring::new();
+        let res = s.from_bytes(buf);
+        match res {
+            Ok(_) => return Ok(s),
+            Err(msg) => return Err(msg)
+        }
+    }
+
 	pub fn from_raw_bytes(&mut self, buf: &[u8]) -> Result<u32, String> {
         if buf.len() == 0 || buf.len() > 0xFFFF {
             return Err(format!("[Rstring::from_raw_bytes] Invalid slice length: 0x{:X?}!", buf.len()));
@@ -160,9 +187,6 @@ impl Rstring {
         if let Ok(s) = utf {
             self.utf8 = Some(s);
         }
-        //for v in buf[..].iter() {
-		//    self.bytes.push(*v);
-		//}
 		Ok(self.size as u32)
 	}
 
@@ -246,6 +270,14 @@ pub struct Rentry {
 }
 
 impl Rentry {
+    pub fn new(entry_type: RDE) -> Rentry {
+        Rentry {
+            typ: entry_type,
+            offset: 0,
+            s: None,
+            data: None
+        }
+    }
 	pub fn as_bytes(&self) -> Vec<u8> {
 		let mut bytes: Vec<u8> = vec![0u8;8];
 		match self.typ {
@@ -256,7 +288,7 @@ impl Rentry {
 		bytes
 	}
 	
-	pub fn from_bytes(&mut self, buf: &[u8]) -> Result<u32, ()> {
+	pub fn from_bytes(&mut self, buf: &[u8]) -> Result<u32, String> {
 		if buf.len() >= 8 {
 			match self.typ {
 				RDE::TypeString(_) => {
@@ -267,8 +299,16 @@ impl Rentry {
 			self.offset = LittleEndian::read_u32(&buf[4..8]);
 			return Ok(8);
 		}
-		Err(())
+		Err(format!("[Rentry::from_bytes] Buffer length is less than structure size!"))
 	}
+	
+    pub fn new_from_bytes(entry_type: RDE, buf: &[u8]) -> Result<Rentry, String> {
+        let mut e = Rentry::new(entry_type);
+        match e.from_bytes(buf) {
+            Ok(_) => return Ok(e),
+            Err(msg) => return Err(msg)
+        }
+    }
 
 	pub fn is_table_offset(&self) -> Option<u32> {
 		if self.offset & 0x80000000 != 0 {
@@ -383,6 +423,14 @@ pub struct Rdata {
 }
 
 impl Rdata {
+    pub fn new() -> Rdata {
+        Rdata {
+            rva: 0,
+            size: 0,
+            cp: 0
+        }
+    }
+
 	pub fn as_bytes(&self) -> Vec<u8> {
 		let mut bytes: Vec<u8> = vec![0u8;16];
 		LittleEndian::write_u32(&mut bytes[0..4], self.rva);
@@ -392,19 +440,28 @@ impl Rdata {
 		bytes
 	}
 	
-	pub fn from_bytes(&mut self, buf: &[u8]) -> Result<u32, ()> {
+	pub fn from_bytes(&mut self, buf: &[u8]) -> Result<u32, String> {
 		if buf.len() >= 16 {
 			let reserved = LittleEndian::read_u32(&buf[12..16]);
             if reserved != 0 {
-                return Err(());
+                return Err(format!("[Rdata::from_bytes] Reserved field is not zero!"));
             }
 			self.rva = LittleEndian::read_u32(&buf[0..4]);
 			self.size = LittleEndian::read_u32(&buf[4..8]);
 			self.cp = LittleEndian::read_u32(&buf[8..12]);
 			return Ok(16);
 		}
-		Err(())
+		Err(format!("[Rdata::from_bytes] Buffer length less than size of structure!"))
 	}
+	
+    pub fn new_from_bytes(buf: &[u8]) -> Result<Rdata, String> {
+        let mut d = Rdata::new();
+        let res = d.from_bytes(buf);
+        match res {
+            Ok(_) => return Ok(d),
+            Err(msg) => return Err(msg)
+        }
+    }
 }
 //--------------------------------------------------------------------------------------------------------
 

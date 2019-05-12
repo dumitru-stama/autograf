@@ -125,7 +125,7 @@ fn main() -> io::Result<()> {
 
         // tree holds a tree view of the tables described by the starting offset
         let mut tree = Tree::new(Robject::Table(0));
-        let mut root = tree.root_mut();
+        let root = tree.root_mut();
 
         match walk_tree(root, &rsrc_section, 0, 0) {
             Ok(_) => println!("Ok"),
@@ -143,88 +143,60 @@ fn main() -> io::Result<()> {
 }
 
 //-------------------------------------------------------------------------------------------
-fn walk_tree(mut root: NodeMut<Robject>, rs: &[u8], ki: u32, level: usize) -> Result<usize, String>{
-    let mut ot = ki as usize;
-    let mut t = Rtable {
-        characteristics: 0,
-        timestamp: 0,
-        maj_ver: 0,
-        min_ver: 0,
-        names: 0,
-        ids: 0
-    };
-    t.from_bytes(&rs[ot..ot+16]);
+fn walk_tree(mut root: NodeMut<Robject>, rsrc_section_start: &[u8], table_offset: usize, level: usize) -> Result<usize, String>{
+    let table = Rtable::new_from_bytes(&rsrc_section_start[table_offset .. table_offset+16])?;
     print!("{}", repeat(' ').take(level).collect::<String>());
-    println!("{:X?}", t);
+    println!("{:X?}", table);
 
-    for i in 0..t.names as usize {
-        let mut e = Rentry {
-            typ: RDE::TypeString(0),
-            offset:0,
-            s: None,
-            data: None
-        };
-        let oe = ot+16+i*8;
-        e.from_bytes(&rs[oe..oe+8]);
-        let so = e.get_name_offset()?;
-        let mut s = Rstring {
-            size: 0,
-            bytes: vec![],
-            utf8: None
-        };
-        s.from_bytes(&rs[so as usize..])?;
-        e.s = Some(s);
+    for i in 0..table.names as usize {
+        let entry_offset = table_offset+16+i*8;
 
-        let tst = e.is_table_offset();
-        if let None = tst {
-            let mut d = Rdata {
-                rva: 0,
-                size: 0,
-                cp: 0
-            };
-            d.from_bytes(&rs[e.offset as usize..]);
-            e.data = Some(d);
-        }
-        print!("{}", repeat(' ').take(level).collect::<String>());
-        println!("{:X?}", e);
-       
-        let mut entry_root = root.append(Robject::Entry(oe as u32));
-        if let Some(tofs) = e.is_table_offset() {
-            let mut new_root = entry_root.append(Robject::Table(tofs as u32));
-            walk_tree(new_root, rs, tofs, level+2)?;
+        let id = root.id();
+        let nod = root.tree().get_mut(id);
+        if let Some(n) = nod {
+            populate_entry_and_add_data(rsrc_section_start, n, entry_offset, RDE::TypeString(0), level)?;
         }
     }
 
-    for i in 0..t.ids as usize {
-        let mut e = Rentry {
-            typ: RDE::TypeId(0),
-            offset:0,
-            s: None,
-            data: None
-        };
-        let oe = ot+16+(t.names as usize*8)+i*8;
-        e.from_bytes(&rs[oe..oe+8]);
+    for i in 0..table.ids as usize {
+        let entry_offset = table_offset+16+(table.names as usize*8)+i*8;
 
-        let tst = e.is_table_offset();
-        if let None = tst {
-            let mut d = Rdata {
-                rva: 0,
-                size: 0,
-                cp: 0
-            };
-            d.from_bytes(&rs[e.offset as usize..]);
-            e.data = Some(d);
-        }
-        print!("{}", repeat(' ').take(level).collect::<String>());
-        println!("{:X?}", e);
-        
-        let mut entry_root = root.append(Robject::Entry(oe as u32));
-        if let Some(tofs) = e.is_table_offset() {
-            let mut new_root = entry_root.append(Robject::Table(tofs as u32));
-            walk_tree(new_root, rs, tofs, level+2)?;
+        let id = root.id();
+        let nod = root.tree().get_mut(id);
+        if let Some(n) = nod {
+            populate_entry_and_add_data(rsrc_section_start, n, entry_offset, RDE::TypeId(0), level)?;
         }
     }
 
+    Ok(0)
+}
+
+//------------------------------------------------------------------------------------
+fn populate_entry_and_add_data(rsrc_section_start: &[u8], 
+                               mut root: NodeMut<Robject>, 
+                               entry_offset: usize, 
+                               entry_type: RDE, 
+                               level: usize) -> Result<usize, String> {
+
+    let mut entry = Rentry::new_from_bytes(entry_type, &rsrc_section_start[entry_offset..entry_offset+8])?;
+    if let RDE::TypeString(_) = entry.typ {
+        let name_string_offset = entry.get_name_offset()?;
+        let name_string = Rstring::new_from_bytes(&rsrc_section_start[name_string_offset as usize..])?;
+        entry.s = Some(name_string);
+    }
+    // If it's an offset to data and not table then add the data in the entry structure
+    if let None = entry.is_table_offset() {
+        let data = Rdata::new_from_bytes(&rsrc_section_start[entry.offset as usize..])?;
+        entry.data = Some(data);
+    }
+    print!("{}", repeat(' ').take(level).collect::<String>());
+    println!("{:X?}", entry);
+   
+    let mut entry_root = root.append(Robject::Entry(entry_offset as u32));
+    if let Some(tofs) = entry.is_table_offset() {
+        let new_root = entry_root.append(Robject::Table(tofs as u32));
+        walk_tree(new_root, rsrc_section_start, tofs as usize, level+2)?;
+    }
     Ok(0)
 }
 

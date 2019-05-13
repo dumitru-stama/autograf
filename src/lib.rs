@@ -257,6 +257,7 @@ mod rstring_test {
 //--------------------------------------------------------------------------------------------------------
 #[derive(Debug)]
 pub enum RDE {
+    Unknown(u32),
 	TypeString(u32),
 	TypeId(u32)
 }
@@ -278,11 +279,13 @@ impl Rentry {
             data: None
         }
     }
-	pub fn as_bytes(&self) -> Vec<u8> {
+
+    pub fn as_bytes(&self) -> Vec<u8> {
 		let mut bytes: Vec<u8> = vec![0u8;8];
 		match self.typ {
 			RDE::TypeString(v) => LittleEndian::write_u32(&mut bytes[..4], v),
-			RDE::TypeId(v) => LittleEndian::write_u32(&mut bytes[..4], v) 
+			RDE::TypeId(v) => LittleEndian::write_u32(&mut bytes[..4], v),
+            RDE::Unknown(v) => LittleEndian::write_u32(&mut bytes[..4], v) 
 		}
 		LittleEndian::write_u32(&mut bytes[4..8], self.offset);
 		bytes
@@ -294,7 +297,8 @@ impl Rentry {
 				RDE::TypeString(_) => {
                     self.typ = RDE::TypeString(LittleEndian::read_u32(&buf[..4]));
                 },
-				RDE::TypeId(_) => self.typ = RDE::TypeId(LittleEndian::read_u32(&buf[..4]))
+				RDE::TypeId(_) => self.typ = RDE::TypeId(LittleEndian::read_u32(&buf[..4])),
+                RDE::Unknown(_) => self.typ = RDE::Unknown(LittleEndian::read_u32(&buf[..4]))
 			}
 			self.offset = LittleEndian::read_u32(&buf[4..8]);
 			return Ok(8);

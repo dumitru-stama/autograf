@@ -28,26 +28,52 @@ impl<T> TreePool<T> {
         roots
     }
 
-    pub fn get_nth(&self, nth: usize) -> Result< &T, String > {
+    pub fn get_nth(&self, nth: usize) -> Option<&Node<T>> {
         if nth >= self.nodes.len() {
-            return Err(format!("[TreePool::get_nth] nth larger than vector size: {} >= {}", nth, self.nodes.len()));
+            return None;
         }
-        match &self.nodes[nth].value {
-            Some(v) => return Ok(v),
-            None => return Err(format!("[TreePool::get_nth] Node {} has no value", nth))
-        }
+        Some(&self.nodes[nth])
     }
 
-    pub fn get_next_sibling(&self, nth: usize) -> Result<usize, String> {
+    pub fn get_children(&self, node: &Node<T>) -> Option<Vec<&Node<T>>> {
+        let mut child = node.first_child;
+        if let None = child {
+            return None;
+        }
+
+        let mut children: Vec<&Node<T>> = vec![];
+        loop {
+            match child {
+                Some(c) => children.push(&self.nodes[c]),
+                None => break
+            }
+            child = self.nodes[child.unwrap()].next_sibling;
+        }
+        Some(children)
+    }
+
+    pub fn get_next_sibling(&self, nth: usize) -> Result< &Node<T>, String > {
         if nth >= self.nodes.len() {
             return Err(format!("[TreePool::get_next_sibling] nth larger than vector size: {} >= {}", nth, self.nodes.len()));
         }
 
         match self.nodes[nth].next_sibling {
-            Some(nsib) => return Ok(nsib),
+            Some(nsib) => return Ok(&self.nodes[nsib]),
             None => return Err(format!("[TreePool::get_next_sibling] Node {} has no next sibling", nth))
         }
     }
+
+    pub fn get_prev_sibling(&self, nth: usize) -> Result< &Node<T>, String > {
+        if nth >= self.nodes.len() {
+            return Err(format!("[TreePool::get_prev_sibling] nth larger than vector size: {} >= {}", nth, self.nodes.len()));
+        }
+
+        match self.nodes[nth].prev_sibling {
+            Some(psib) => return Ok(&self.nodes[psib]),
+            None => return Err(format!("[TreePool::get_prev_sibling] Node {} has no prev sibling", nth))
+        }
+    }
+
 
     pub fn add_node(&mut self, parent: Option<usize>, val: T) -> Result<usize, String> {
         let index = self.nodes.len();
@@ -101,7 +127,7 @@ impl<T> TreePool<T> {
 
 #[derive(Debug)]
 pub struct Node<T> {
-    index: usize,
+    pub index: usize,
     pub parent: Option<usize>,
     pub value: Option<T>,
     pub first_child: Option<usize>,
@@ -120,6 +146,20 @@ impl<T> Node<T> {
             last_child: None,
             next_sibling: None,
             prev_sibling: None
+        }
+    }
+    
+    pub fn get_first_child_index(&self) -> Result<usize, String> {
+        match self.first_child {
+            Some(fc) => return Ok(fc),
+            None => return Err(format!("[Node::get_first_child_index] Node {} has no first child", self.index))
+        }
+    }
+    
+    pub fn get_last_child_index(&self) -> Result<usize, String> {
+        match self.last_child {
+            Some(lc) => return Ok(lc),
+            None => return Err(format!("[Node::get_last_child_index] Node {} has no last child", self.index))
         }
     }
 }

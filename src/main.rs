@@ -135,7 +135,20 @@ fn main() -> io::Result<()> {
 
         println!("Tree size: {} nodes", tree.size());
         println!("Number of root nodes: {}", tree.how_many_roots());
-        dbg!(tree.get_nth(0));
+
+        let root = tree.get_nth(0).unwrap();
+        for i in tree.get_children(root).unwrap() {
+            if let Some(v) = &i.value {
+                print!("Child at index {} : ", i.index);
+                match v {
+                    Robject::Entry(ofs) => {
+                        let e = Rentry::new_from_bytes(RDE::Unknown(*ofs), &rsrc_section[*ofs as usize..(*ofs+8) as usize]);
+                        println!("{:X?}", e);
+                    }, 
+                    _ => println!("Unknown entry {:?}", v)
+                }
+            }
+        }
 
     } else {
         println!("Here we have to handle the case where there is no resource section");

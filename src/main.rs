@@ -150,6 +150,13 @@ fn main() -> io::Result<()> {
 
                     Robject::IdEntry(ofs) => {
                         let e = Rentry::new_from_bytes(RDE::TypeId(*ofs), &rsrc_section, *ofs as usize);
+                        if let Ok(entry) = &e {
+                            if let RDE::TypeId(id) = entry.typ {
+                                if id == 0x10 {
+                                    print!(" !! BINGO !! ");
+                                }
+                            }
+                        }
                         println!("{:X?}", e.unwrap());
                     },
 
@@ -163,6 +170,9 @@ fn main() -> io::Result<()> {
             }
         }
 
+        println!("-------------------------------------------------");
+        print_tree(&tree, 0, &rsrc_section, 0);
+
     } else {
         println!("Here we have to handle the case where there is no resource section");
     }
@@ -171,11 +181,65 @@ fn main() -> io::Result<()> {
 }
 
 //-------------------------------------------------------------------------------------------
+fn print_tree(tree: &TreePool<Robject>,
+              node: usize,
+              rsrc_section: &[u8],
+              level: usize) {
+
+
+    let root = tree.get_nth(node).unwrap();
+    for i in tree.get_children(root) {
+        if let Some(v) = &i.value {
+            print!("{}", repeat(' ').take(level).collect::<String>());
+            //println!("{:X?}", v);
+            match v {
+                Robject::Table(ofs) => {
+                    let t = Rtable::new_from_bytes(&rsrc_section[*ofs as usize..]);
+                    println!("{:X?}", t.unwrap());
+                    print_tree(tree, i.index, rsrc_section, level+2);
+                },
+
+                Robject::NameEntry(ofs) => {
+                    let e = Rentry::new_from_bytes(RDE::TypeString(*ofs), rsrc_section, *ofs as usize);
+                    println!("{:X?}", e.unwrap());
+                    print_tree(tree, i.index, rsrc_section, level+2);
+                },
+
+                Robject::IdEntry(ofs) => {
+                    let e = Rentry::new_from_bytes(RDE::TypeId(*ofs), rsrc_section, *ofs as usize);
+                    if let Ok(entry) = &e {
+                        if let RDE::TypeId(id) = entry.typ {
+                            if id == 0x10 {
+                                print!(" !! BINGO !! ");
+                            }
+                        }
+                    }
+                    println!("{:X?}", e.unwrap());
+                    print_tree(tree, i.index, rsrc_section, level+2);
+                },
+
+                Robject::Leaf(ofs) => {
+                    let e = Rentry::new_from_bytes(RDE::Unknown(*ofs), rsrc_section, *ofs as usize);
+                    println!("{:X?}", e.unwrap());
+                    print_tree(tree, i.index, rsrc_section, level+2);
+                },
+                
+                _ => {
+                    println!("Unknown entry {:?}", v);
+                    print_tree(tree, i.index, rsrc_section, level+2);
+                }
+            }
+        }
+    } 
+}
+
+//-------------------------------------------------------------------------------------------
 fn parse_resource_section(tree: &mut TreePool<Robject>, 
                         root: Option<usize>,
                         rsrc_section_start: &[u8], 
                         table_offset: usize, 
                         level: usize) -> Result<usize, String>{
+    
     let table = Rtable::new_from_bytes(&rsrc_section_start[table_offset .. table_offset+16])?;
     //print!("{}", repeat(' ').take(level).collect::<String>());
     //println!("{:X?}", table);
@@ -203,7 +267,7 @@ fn parse_resource_section(tree: &mut TreePool<Robject>,
             },
 
             None => {
-                tree.add_node(root, Robject::Leaf(entry_offset as u32))?;
+                //tree.add_node(root, Robject::Leaf(entry_offset as u32))?;
             }
         }
     }

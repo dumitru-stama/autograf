@@ -134,7 +134,9 @@ pub struct Node<T> {
     pub first_child: Option<usize>,
     pub last_child: Option<usize>,
     pub next_sibling: Option<usize>,
-    pub prev_sibling: Option<usize>
+    pub prev_sibling: Option<usize>,
+    pub offset: usize,
+    pub new_offset: usize
 }
 
 impl<T> Node<T> {
@@ -146,7 +148,9 @@ impl<T> Node<T> {
             first_child: None,
             last_child: None,
             next_sibling: None,
-            prev_sibling: None
+            prev_sibling: None,
+            offset: 0,
+            new_offset: 0
         }
     }
     

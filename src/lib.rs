@@ -1,15 +1,15 @@
 extern crate byteorder;
 use byteorder::{ByteOrder, LittleEndian};
 
+// first u32 is the old offset in resource section
+// second u32 is the new offset in the generated resource section
 #[derive(Debug)]
 pub enum Robject {
     Null,
-    Table(u32),
-    NameEntry(u32),
-    IdEntry(u32),
-    Leaf(u32),
-    Data(u32),
-    String(u32)
+    Table(u32, u32),
+    NameEntry(u32, u32),
+    IdEntry(u32, u32),
+    Leaf(u32, u32)
 }
 
 //--------------------------------------------------------------------------------------------------------
@@ -59,7 +59,8 @@ impl Rtable {
 		}
 		Err(format!("[Rtable::from_bytes] Invalid buffer length: {} bytes; should be at least 16", buf.len()))
 	}
-	pub fn new_from_bytes(buf: &[u8]) -> Result<Rtable, String> {
+	
+    pub fn new_from_bytes(buf: &[u8]) -> Result<Rtable, String> {
         let mut t = Rtable::new();
         match t.from_bytes(buf) {
             Ok(_) => return Ok(t),

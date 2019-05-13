@@ -35,13 +35,13 @@ impl<T> TreePool<T> {
         Some(&self.nodes[nth])
     }
 
-    pub fn get_children(&self, node: &Node<T>) -> Option<Vec<&Node<T>>> {
+    pub fn get_children(&self, node: &Node<T>) -> Vec<&Node<T>> {
         let mut child = node.first_child;
+        let mut children: Vec<&Node<T>> = vec![];
         if let None = child {
-            return None;
+            return children;
         }
 
-        let mut children: Vec<&Node<T>> = vec![];
         loop {
             match child {
                 Some(c) => children.push(&self.nodes[c]),
@@ -49,7 +49,8 @@ impl<T> TreePool<T> {
             }
             child = self.nodes[child.unwrap()].next_sibling;
         }
-        Some(children)
+
+        children
     }
 
     pub fn get_next_sibling(&self, nth: usize) -> Result< &Node<T>, String > {

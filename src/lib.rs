@@ -5,7 +5,9 @@ use byteorder::{ByteOrder, LittleEndian};
 pub enum Robject {
     Null,
     Table(u32),
-    Entry(u32),
+    NameEntry(u32),
+    IdEntry(u32),
+    Leaf(u32),
     Data(u32),
     String(u32)
 }
@@ -301,15 +303,30 @@ impl Rentry {
                 RDE::Unknown(_) => self.typ = RDE::Unknown(LittleEndian::read_u32(&buf[..4]))
 			}
 			self.offset = LittleEndian::read_u32(&buf[4..8]);
-			return Ok(8);
+            return Ok(8);
 		}
 		Err(format!("[Rentry::from_bytes] Buffer length is less than structure size!"))
 	}
 	
-    pub fn new_from_bytes(entry_type: RDE, buf: &[u8]) -> Result<Rentry, String> {
+    pub fn new_from_bytes(entry_type: RDE, buf: &[u8], ofs: usize) -> Result<Rentry, String> {
         let mut e = Rentry::new(entry_type);
-        match e.from_bytes(buf) {
-            Ok(_) => return Ok(e),
+        match e.from_bytes(&buf[ofs..ofs+8]) {
+            Ok(_) => {
+                if let RDE::TypeString(_) = e.typ {
+                    let name_string_offset = e.get_name_offset();
+                    if let Ok(nofs) = name_string_offset {
+                        let name_string = Rstring::new_from_bytes(&buf[nofs as usize..])?;
+                        e.s = Some(name_string);
+                    }
+                }
+                // If it's an offset to data and not table then add the data in the entry structure
+                if let None = e.is_table_offset() {
+                    let data = Rdata::new_from_bytes(&buf[e.offset as usize..])?;
+                    e.data = Some(data);
+                }
+                return Ok(e);
+            },
+
             Err(msg) => return Err(msg)
         }
     }

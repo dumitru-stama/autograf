@@ -1,6 +1,29 @@
 extern crate byteorder;
 use byteorder::{ByteOrder, LittleEndian};
 
+pub const ACCELERATOR_TABLE: u32 = 9;
+pub const ANIMATED_CURSOR:   u32 = 21;
+pub const ANIMATED_ICON:     u32 = 22;
+pub const BITMAP:            u32 = 2;
+pub const CURSOR:            u32 = 1;
+pub const DIALOG:            u32 = 5;
+pub const DLG_INCLUDE:       u32 = 17;
+pub const FONT:              u32 = 8;
+pub const FONT_DIRECTORY:    u32 = 7;
+pub const GROUP_CURSOR:      u32 = CURSOR + 11;
+pub const GROUP_ICON:        u32 = ICON + 11;
+pub const HTML:              u32 = 23;
+pub const ICON:              u32 = 3;
+pub const MANIFEST:          u32 = 24;
+pub const MENU:              u32 = 4;
+pub const MESSAGE_TABLE:     u32 = 11;
+pub const PLUG_PLAY:         u32 = 19;
+pub const RC_DATA:           u32 = 10;
+pub const STRING:            u32 = 6;
+pub const VERSION:           u32 = 16;
+pub const VXD:               u32 = 20;
+
+
 // first u32 is the old offset in resource section
 // second u32 is the new offset in the generated resource section
 #[derive(Debug)]

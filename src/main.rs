@@ -139,12 +139,45 @@ fn main() -> io::Result<()> {
 
         println!("-------------------------------------------------");
         print_tree(&tree, 0, &rsrc_section, 0);
+        
+        println!("-------------------------------------------------");
+        println!("VERSION Node index: {:?}", find_resource_type(&tree, 0, &rsrc_section, VERSION));
 
     } else {
         println!("Here we have to handle the case where there is no resource section");
     }
 
     Ok(())
+}
+
+//-------------------------------------------------------------------------------------------
+fn find_resource_type(tree: &TreePool<Robject>, 
+                      node: usize,
+                      rsrc_section: &[u8],
+                      what_type: u32) -> Option<(usize, usize)> {
+
+    let root = tree.get_nth(node).unwrap();
+    for i in tree.get_children(root) {
+        if let Some(v) = &i.value {
+            match v {
+                Robject::IdEntry(ofs, new_ofs) => {
+                    let e = Rentry::new_from_bytes(RDE::TypeId(*ofs), rsrc_section, *ofs as usize);
+                    if let Ok(entry) = &e {
+                        if let RDE::TypeId(id) = entry.typ {
+                            if id == what_type {
+                                return Some((i.index, *ofs as usize));
+                            }
+                        }
+                    }
+                },
+
+                _ => {
+                }
+            }
+        }
+    }
+
+    None
 }
 
 //-------------------------------------------------------------------------------------------
@@ -162,13 +195,13 @@ fn print_tree(tree: &TreePool<Robject>,
             match v {
                 Robject::Table(ofs, new_ofs) => {
                     let t = Rtable::new_from_bytes(&rsrc_section[*ofs as usize..]);
-                    println!("{:X?}[{:X?}][{:X?}]", t.unwrap(), ofs, new_ofs);
+                    println!("{:X?}[idx:{}][ofs:0x{:X?}][nofs:0x{:X?}]", t.unwrap(), i.index, ofs, new_ofs);
                     print_tree(tree, i.index, rsrc_section, level+2);
                 },
 
                 Robject::NameEntry(ofs, new_ofs) => {
                     let e = Rentry::new_from_bytes(RDE::TypeString(*ofs), rsrc_section, *ofs as usize);
-                    println!("{:X?}[{:X?}][{:X?}]", e.unwrap(), ofs, new_ofs);
+                    println!("{:X?}[idx:{}][ofs:0x{:X?}][nofs:0x{:X?}]", e.unwrap(), i.index, ofs, new_ofs);
                     print_tree(tree, i.index, rsrc_section, level+2);
                 },
 
@@ -181,13 +214,13 @@ fn print_tree(tree: &TreePool<Robject>,
                             }
                         }
                     }
-                    println!("{:X?}[{:X?}][{:X?}]", e.unwrap(), ofs, new_ofs);
+                    println!("{:X?}[idx:{}][ofs:0x{:X?}][nofs:0x{:X?}]", e.unwrap(), i.index, ofs, new_ofs);
                     print_tree(tree, i.index, rsrc_section, level+2);
                 },
 
                 Robject::Leaf(ofs, new_ofs) => {
                     let e = Rentry::new_from_bytes(RDE::Unknown(*ofs), rsrc_section, *ofs as usize);
-                    println!("{:X?}[{:X?}][{:X?}]", e.unwrap(), ofs, new_ofs);
+                    println!("{:X?}[idx:{}][ofs:0x{:X?}][nofs:0x{:X?}]", e.unwrap(), i.index, ofs, new_ofs);
                     print_tree(tree, i.index, rsrc_section, level+2);
                 },
                 

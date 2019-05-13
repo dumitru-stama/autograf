@@ -1,7 +1,7 @@
 extern crate persrc;
+extern crate mytree;
 extern crate byteorder;
 extern crate hexdump;
-extern crate ego_tree;
 
 use std::io;
 use std::iter::repeat;
@@ -12,8 +12,8 @@ use std::fs::File;
 use std::io::SeekFrom;
 use byteorder::{ByteOrder, LittleEndian};
 use hexdump::hexdump;
-use ego_tree::{Tree, NodeMut};
 use persrc::*;
+use mytree::TreePool;
 
 fn main() -> io::Result<()> {
     let mut msdos_buf = [0u8;64];
@@ -124,16 +124,18 @@ fn main() -> io::Result<()> {
         hexdump(&rsrc_section[0..256]);
 
         // tree holds a tree view of the tables described by the starting offset
-        let mut tree = Tree::new(Robject::Table(0));
-        let root = tree.root_mut();
+        let mut tree = TreePool::new();
 
-        match walk_tree(root, &rsrc_section, 0, 0) {
+        match create_resource_tree(&mut tree, None, &rsrc_section, 0, 0) {
             Ok(_) => println!("Ok"),
             Err(s) => println!("{}", s),
         };
 
-        //println!("{:?}", tree);
-        dbg!(&tree);
+        //dbg!(&tree);
+
+        println!("Tree size: {} nodes", tree.size());
+        println!("Number of root nodes: {}", tree.how_many_roots());
+        dbg!(tree.get_nth(0));
 
     } else {
         println!("Here we have to handle the case where there is no resource section");
@@ -143,59 +145,53 @@ fn main() -> io::Result<()> {
 }
 
 //-------------------------------------------------------------------------------------------
-fn walk_tree(mut root: NodeMut<Robject>, rsrc_section_start: &[u8], table_offset: usize, level: usize) -> Result<usize, String>{
+fn create_resource_tree(tree: &mut TreePool<Robject>, 
+                        root: Option<usize>,
+                        rsrc_section_start: &[u8], 
+                        table_offset: usize, 
+                        level: usize) -> Result<usize, String>{
     let table = Rtable::new_from_bytes(&rsrc_section_start[table_offset .. table_offset+16])?;
     print!("{}", repeat(' ').take(level).collect::<String>());
     println!("{:X?}", table);
+    let new_root = tree.add_node(root, Robject::Table(table_offset as u32))?;
 
-    for i in 0..table.names as usize {
+    for i in 0..(table.names + table.ids) as usize {
         let entry_offset = table_offset+16+i*8;
-
-        let id = root.id();
-        let nod = root.tree().get_mut(id);
-        if let Some(n) = nod {
-            populate_entry_and_add_data(rsrc_section_start, n, entry_offset, RDE::TypeString(0), level)?;
+        let entry_type;
+        if i < table.names as usize {
+            entry_type = RDE::TypeString(0);
+        } else {
+            entry_type = RDE::TypeId(0);
         }
-    }
-
-    for i in 0..table.ids as usize {
-        let entry_offset = table_offset+16+(table.names as usize*8)+i*8;
-
-        let id = root.id();
-        let nod = root.tree().get_mut(id);
-        if let Some(n) = nod {
-            populate_entry_and_add_data(rsrc_section_start, n, entry_offset, RDE::TypeId(0), level)?;
+        let mut entry = Rentry::new_from_bytes(entry_type, &rsrc_section_start[entry_offset..entry_offset+8])?;
+        if let RDE::TypeString(_) = entry.typ {
+            let name_string_offset = entry.get_name_offset()?;
+            let name_string = Rstring::new_from_bytes(&rsrc_section_start[name_string_offset as usize..])?;
+            entry.s = Some(name_string);
         }
-    }
+        // If it's an offset to data and not table then add the data in the entry structure
+        if let None = entry.is_table_offset() {
+            let data = Rdata::new_from_bytes(&rsrc_section_start[entry.offset as usize..])?;
+            entry.data = Some(data);
+        }
+        print!("{}", repeat(' ').take(level).collect::<String>());
+        println!("{:X?}", entry);
 
-    Ok(0)
-}
+        let node_id = tree.add_node(Some(new_root), Robject::Entry(entry_offset as u32))?;
+        match entry.is_table_offset() {
+            Some(tofs) => {
+                create_resource_tree(tree, Some(node_id), rsrc_section_start, tofs as usize, level+2)?;
+            },
 
-//------------------------------------------------------------------------------------
-fn populate_entry_and_add_data(rsrc_section_start: &[u8], 
-                               mut root: NodeMut<Robject>, 
-                               entry_offset: usize, 
-                               entry_type: RDE, 
-                               level: usize) -> Result<usize, String> {
-
-    let mut entry = Rentry::new_from_bytes(entry_type, &rsrc_section_start[entry_offset..entry_offset+8])?;
-    if let RDE::TypeString(_) = entry.typ {
-        let name_string_offset = entry.get_name_offset()?;
-        let name_string = Rstring::new_from_bytes(&rsrc_section_start[name_string_offset as usize..])?;
-        entry.s = Some(name_string);
-    }
-    // If it's an offset to data and not table then add the data in the entry structure
-    if let None = entry.is_table_offset() {
-        let data = Rdata::new_from_bytes(&rsrc_section_start[entry.offset as usize..])?;
-        entry.data = Some(data);
-    }
-    print!("{}", repeat(' ').take(level).collect::<String>());
-    println!("{:X?}", entry);
-   
-    let mut entry_root = root.append(Robject::Entry(entry_offset as u32));
-    if let Some(tofs) = entry.is_table_offset() {
-        let new_root = entry_root.append(Robject::Table(tofs as u32));
-        walk_tree(new_root, rsrc_section_start, tofs as usize, level+2)?;
+            None => {
+                let node_id = tree.add_node(root, Robject::Entry(entry_offset as u32))?;
+            }
+        }
+        //let node_id = tree.add_node(root, Robject::Entry(entry_offset as u32))?;
+        //if let Some(tofs) = entry.is_table_offset() {
+        //    let new_root = tree.add_node(Some(node_id), Robject::Table(tofs as u32))?;
+        //    create_resource_tree(tree, new_root, rsrc_section_start, tofs as usize, level+2)?;
+        //}
     }
     Ok(0)
 }
